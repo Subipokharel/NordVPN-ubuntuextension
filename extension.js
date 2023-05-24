@@ -41,8 +41,6 @@ class NordVPN {
         this._newcity = "";
         this._newserver = "";
 
-        //this._vpnStatus();
-        this._getIP();
     }
 }
 
