@@ -15,7 +15,6 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
-
 /* exported init */
 const { Gtk, Clutter, Gio, St, GObject, GLib } = imports.gi;
 
@@ -35,11 +34,6 @@ class NordVPN {
             disconnect: ['nordvpn', 'd'],
             status: ['nordvpn', 'status']
         }
-
-        this._newip = "";
-        this._newcountry = "";
-        this._newcity = "";
-        this._newserver = "";
 
     }
 }
