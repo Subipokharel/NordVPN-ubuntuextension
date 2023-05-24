@@ -28,6 +28,24 @@ let myPopup;
 const vpnON = "network-vpn-symbolic";
 const vpnOFF = "network-vpn-disconnected-symbolic";
 
+class NordVPN {
+	constructor() {
+        this._commands = {
+            connect: ['nordvpn', 'c'],
+            disconnect: ['nordvpn', 'd'],
+            status: ['nordvpn', 'status']
+        }
+
+        this._newip = "";
+        this._newcountry = "";
+        this._newcity = "";
+        this._newserver = "";
+
+        //this._vpnStatus();
+        this._getIP();
+    }
+}
+
 const MyPopup = GObject.registerClass(
     class MyPopup extends PanelMenu.Button {
         _init() {
