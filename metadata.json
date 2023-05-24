@@ -1,0 +1,9 @@
+{
+  "name": "NordVPN",
+  "description": "This extension displays the status of NordVPN in the panel.",
+  "uuid": "nordvpn@Subipokharel.github.com",
+  "version": 1,
+  "shell-version": [
+    "42"
+  ] 
+}
