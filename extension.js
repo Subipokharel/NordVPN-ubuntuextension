@@ -17,15 +17,16 @@
  */
 /* exported init */
 const { Gtk, Clutter, Gio, St, GObject, GLib } = imports.gi;
-
 const Main = imports.ui.main;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
-
 let myPopup;
+let timeout = 0;
+
 //Icon style --> usr/share/icons/Yaru/scalable/status
 const vpnON = "network-vpn-symbolic";
 const vpnOFF = "network-vpn-disconnected-symbolic";
+const vpnUnknown = "network-vpn-no-route-symbolic.svg"
 
 class NordVPN {
     constructor() {
@@ -38,31 +39,27 @@ class NordVPN {
 
     // Run command to connect to VPN
     async _vpnConnect() {
-        // Return True or false based on Connection Status
         try {
-
-            let updatedIP = await this._getIP(this._commands.status);
-            return updatedIP;
+            Main.notify("Connecting to VPN...");
+            this._execCommand(this._commands.connect);
         }
-        catch (e) {
-            updatedIP = "Error";
-            return updatedIP;
+        catch (err) {
+            log(err);
         }
     }
 
     // Run command to disconnect from VPN
     async _vpnDisconnect() {
         try {
-            // Return true or false based on Disconnection status
-            let updatedIP = "Disconnected";
-            return updatedIP;
+            Main.notify("Disconnecting VPN...");
+            this._execCommand(this._commands.disconnect);
         }
-        catch (e) {
-            updatedIP = "Error";
-            return updatedIP;
+        catch (err) {
+            log(err);
         }
     }
 
+    // Check VPN connection status
     async getvpnstatus(input = null, cancellable = null) {
         try {
             let fullStatus,
@@ -94,13 +91,11 @@ class NordVPN {
                         else { fullStatus = stdout.toString().trim(); }
                         fullStatus = fullStatus.slice(fullStatus.indexOf("Status:"), fullStatus.length).trim();
                         const result = fullStatus.split('\n');
-
                         // Call function to return dictionary from command
                         result.forEach(x => {
                             let item = x.split(": ");
                             newval[item[0]] = item[1].toLowerCase();
                         });
-
                         resolve(newval);
                     } catch (e) {
                         reject(e);
@@ -111,8 +106,8 @@ class NordVPN {
                     }
                 });
             });
-        } catch (e) {
-            log(e);
+        } catch (err) {
+            log(err);
         }
     }
 
@@ -120,7 +115,6 @@ class NordVPN {
     async _execCommand(argv, input = null, cancellable = null) {
         try {
             let fullStatus,
-                newval,
                 cancelId = 0;
             let flags = (Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
             let proc = new Gio.Subprocess({
@@ -132,6 +126,7 @@ class NordVPN {
             if (cancellable instanceof Gio.Cancellable) {
                 cancelId = cancellable.connect(() => proc.force_exit());
             }
+            // Return promise result of vpn status
             return new Promise((resolve, reject) => {
                 proc.communicate_utf8_async(input, null, (proc, res) => {
                     try {
@@ -148,13 +143,10 @@ class NordVPN {
                         } else {
                             fullStatus = stdout.toString().trim();
                         }
-                        fullStatus = fullStatus.slice(fullStatus.indexOf("Status:"), fullStatus.length).trim();
-                        const result = fullStatus.split('\n');
-
-                        resolve(result);
-
-                    } catch (e) {
-                        reject(e);
+                        // log(fullStatus);
+                        resolve(fullStatus);
+                    } catch (err) {
+                        reject(err);
                     } finally {
                         if (cancelId > 0) {
                             cancellable.disconnect(cancelId);
@@ -162,8 +154,8 @@ class NordVPN {
                     }
                 });
             });
-        } catch (e) {
-            log(e);
+        } catch (err) {
+            log(err);
         }
     }
 }
@@ -172,94 +164,100 @@ const MyPopup = GObject.registerClass(
     class MyPopup extends PanelMenu.Button {
         _init() {
             super._init(0);
-
-            //Initialize the NordVPN Class
+            
+            //Initialize
             this.NordVPNhandler = new NordVPN();
-
-            //Check VPN Status return - ToggleStatus and ipAddress
             this.vpnTogglestatus = false;
-            this.ipAddress = "...";
+            this.ipAddress = "";
 
             // Menu Icon
-            this._icon = new St.Icon({
-                icon_name: 'network-vpn-disconnected-symbolic',
-                style_class: 'system-status-icon',
-            });
+            this._icon = new St.Icon({ icon_name: vpnUnknown, style_class: 'system-status-icon', });
             this.add_child(this._icon);
-
             //Add VPN Toggle switch
             this.vpnToggle = new PopupMenu.PopupSwitchMenuItem('Nord VPN', this.vpnTogglestatus, {});
             this.vpnToggle.connect('toggled', this._toggleOutput.bind(this));
             this.menu.addMenuItem(this.vpnToggle);
-
             // Add a separator
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-            // this is where IP info will go
-            this._vpninfo = new PopupMenu.PopupMenuItem(
-                this.ipAddress,
-                { reactive: false }
-            );
+            // This is where IP info will go
+            this._vpninfo = new PopupMenu.PopupMenuItem(this.ipAddress, { reactive: false });
             this.menu.addMenuItem(this._vpninfo);
-
-            //Open and close menu
-            this.menu.connect('open-state-changed', this._refreshstatus.bind(this));
+            
+            // Updates and updates the Panel status after every 20 seconds
+            this._update();
+            timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, (20 * 1000), () => {
+                this._update();
+                return GLib.SOURCE_CONTINUE;
+            });
+            // Open and close menu
+            this.menu.connect('open-state-changed', this._menuopen.bind(this));
         }
 
         // VPN Toggle on or OFF
         async _toggleOutput(widget, value) {
+            let val;
             if (value) {
-                this._icon.icon_name = vpnON;
-                log('Toggle has been turned ON!'); //Main.notify('Toggle has been turned ON!');
+                // log('Toggle has been turned ON!');
+                this.NordVPNhandler._vpnConnect();
             }
             else {
-                this._icon.icon_name = vpnOFF;
-                log('Toggle has been turned OFF!'); //Main.notify('Toggle has been turned OFF!');
-
+                // log('Toggle has been turned OFF!');
+                this.NordVPNhandler._vpnDisconnect();
             }
-            return Clutter.EVENT_PROPAGATE;
+            await this._update();
+
+            return Clutter.EVENT_PROPAGATE; 
         }
 
-        async getVPNstatusDict(){
-            var dict = await this.NordVPNhandler.getvpnstatus().catch((e) => {
-                        log(e)
-                        });
+        async getVPNstatusDict() {
+            var dict = await this.NordVPNhandler.getvpnstatus().catch((err) => {
+                log(err)
+            });
             return dict;
         }
 
-        async _refreshstatus(menu, open) {
+        async _menuopen(menu, open) {
             try {
                 if (open) {
-                    let newipAddress;
-                    var value = await this.getVPNstatusDict();
+                    await this._update();
+                }
+            } catch (err) {
+                log(err);
+            }
+        }
 
-                    if(value["Status"]==="connected"){
-                        this.vpnToggle.setToggleState(true);
-                        this._icon.icon_name = vpnON;
-
-                        newipAddress = value["IP"];
-                        this._vpninfo.label.text = "IP Address: " + newipAddress;
-                    }
-                    else{
-                        this.vpnToggle.setToggleState(false);
-                        this._icon.icon_name = vpnOFF;
-
-                        this._vpninfo.label.text = value["Status"][0].toUpperCase() + value["Status"].substring(1);
-                    }
-                    log("open");
+        async _update() {
+            try {
+                let newipAddress;
+                var value = await this.getVPNstatusDict();
+                // Check value and update tray icon
+                if (value["Status"] === "connected") {
+                    this.vpnToggle.setToggleState(true);
+                    this._icon.icon_name = vpnON;
+                    newipAddress = value["IP"];
+                    this._vpninfo.label.text = "IP Address: " + newipAddress;
+                }
+                else if (value["Status"] === "disconnected") {
+                    this.vpnToggle.setToggleState(false);
+                    this._icon.icon_name = vpnOFF;
+                    this._vpninfo.label.text = value["Status"][0].toUpperCase() + value["Status"].substring(1);
                 }
                 else {
-                    log("close");
+                    this.vpnToggle.setToggleState(false);
+                    this._icon.icon_name = vpnUnknown;
+                    this._vpninfo.label.text = "Error";
                 }
-            } catch (e) {
-                log(e);
+            }
+            catch {
+                this.vpnToggle.setToggleState(false);
+                this._icon.icon_name = vpnUnknown;
+                this._vpninfo.label.text = "Error";
             }
         }
     }
 );
 
 function init() {
-
 }
 
 function enable() {
@@ -268,5 +266,7 @@ function enable() {
 }
 
 function disable() {
+    GLib.Source.remove(timeout);
+    timeout = null;
     myPopup.destroy();
 }
