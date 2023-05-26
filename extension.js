@@ -28,13 +28,143 @@ const vpnON = "network-vpn-symbolic";
 const vpnOFF = "network-vpn-disconnected-symbolic";
 
 class NordVPN {
-	constructor() {
+    constructor() {
         this._commands = {
             connect: ['nordvpn', 'c'],
             disconnect: ['nordvpn', 'd'],
             status: ['nordvpn', 'status']
         }
+    }
 
+    // Run command to connect to VPN
+    async _vpnConnect() {
+        // Return True or false based on Connection Status
+        try {
+
+            let updatedIP = await this._getIP(this._commands.status);
+            return updatedIP;
+        }
+        catch (e) {
+            updatedIP = "Error";
+            return updatedIP;
+        }
+    }
+
+    // Run command to disconnect from VPN
+    async _vpnDisconnect() {
+        try {
+            // Return true or false based on Disconnection status
+            let updatedIP = "Disconnected";
+            return updatedIP;
+        }
+        catch (e) {
+            updatedIP = "Error";
+            return updatedIP;
+        }
+    }
+
+    async getvpnstatus(input = null, cancellable = null) {
+        try {
+            let fullStatus,
+                newval = {},
+                cancelId = 0;
+            let flags = (Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            let proc = new Gio.Subprocess({
+                argv: this._commands.status,
+                flags: flags
+            });
+
+            proc.init(cancellable);
+            if (cancellable instanceof Gio.Cancellable) {
+                cancelId = cancellable.connect(() => proc.force_exit());
+            }
+            // Return promise result of vpn status
+            return new Promise((resolve, reject) => {
+                proc.communicate_utf8_async(input, null, (proc, res) => {
+                    try {
+                        let [, stdout, stderr] = proc.communicate_utf8_finish(res);
+                        let status = proc.get_exit_status();
+                        if (status !== 0) {
+                            throw new Gio.IOErrorEnum({
+                                code: Gio.io_error_from_errno(status),
+                                message: stderr ? stderr.trim() : GLib.strerror(status)
+                            });
+                        }
+                        if (stdout instanceof Uint8Array) { fullStatus = imports.byteArray.toString(stdout).trim(); }
+                        else { fullStatus = stdout.toString().trim(); }
+                        fullStatus = fullStatus.slice(fullStatus.indexOf("Status:"), fullStatus.length).trim();
+                        const result = fullStatus.split('\n');
+
+                        // Call function to return dictionary from command
+                        result.forEach(x => {
+                            let item = x.split(": ");
+                            newval[item[0]] = item[1].toLowerCase();
+                        });
+
+                        resolve(newval);
+                    } catch (e) {
+                        reject(e);
+                    } finally {
+                        if (cancelId > 0) {
+                            cancellable.disconnect(cancelId);
+                        }
+                    }
+                });
+            });
+        } catch (e) {
+            log(e);
+        }
+    }
+
+    // Execute Command VPN
+    async _execCommand(argv, input = null, cancellable = null) {
+        try {
+            let fullStatus,
+                newval,
+                cancelId = 0;
+            let flags = (Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            let proc = new Gio.Subprocess({
+                argv: argv,
+                flags: flags
+            });
+
+            proc.init(cancellable);
+            if (cancellable instanceof Gio.Cancellable) {
+                cancelId = cancellable.connect(() => proc.force_exit());
+            }
+            return new Promise((resolve, reject) => {
+                proc.communicate_utf8_async(input, null, (proc, res) => {
+                    try {
+                        let [, stdout, stderr] = proc.communicate_utf8_finish(res);
+                        let status = proc.get_exit_status();
+                        if (status !== 0) {
+                            throw new Gio.IOErrorEnum({
+                                code: Gio.io_error_from_errno(status),
+                                message: stderr ? stderr.trim() : GLib.strerror(status)
+                            });
+                        }
+                        if (stdout instanceof Uint8Array) {
+                            fullStatus = imports.byteArray.toString(stdout).trim();
+                        } else {
+                            fullStatus = stdout.toString().trim();
+                        }
+                        fullStatus = fullStatus.slice(fullStatus.indexOf("Status:"), fullStatus.length).trim();
+                        const result = fullStatus.split('\n');
+
+                        resolve(result);
+
+                    } catch (e) {
+                        reject(e);
+                    } finally {
+                        if (cancelId > 0) {
+                            cancellable.disconnect(cancelId);
+                        }
+                    }
+                });
+            });
+        } catch (e) {
+            log(e);
+        }
     }
 }
 
@@ -42,16 +172,13 @@ const MyPopup = GObject.registerClass(
     class MyPopup extends PanelMenu.Button {
         _init() {
             super._init(0);
-            // Initiate VPN class
-            this._commands = {
-                connect: ['nordvpn', 'c'],
-                disconnect: ['nordvpn', 'd'],
-                status: ['nordvpn', 'status']
-            }
+
+            //Initialize the NordVPN Class
+            this.NordVPNhandler = new NordVPN();
 
             //Check VPN Status return - ToggleStatus and ipAddress
             this.vpnTogglestatus = false;
-            this.ipAddress = "";
+            this.ipAddress = "...";
 
             // Menu Icon
             this._icon = new St.Icon({
@@ -61,9 +188,9 @@ const MyPopup = GObject.registerClass(
             this.add_child(this._icon);
 
             //Add VPN Toggle switch
-            let vpnToggle = new PopupMenu.PopupSwitchMenuItem('Nord VPN', this.vpnTogglestatus, {});
-            vpnToggle.connect('toggled', this._toggleOutput.bind(this));
-            this.menu.addMenuItem(vpnToggle);
+            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem('Nord VPN', this.vpnTogglestatus, {});
+            this.vpnToggle.connect('toggled', this._toggleOutput.bind(this));
+            this.menu.addMenuItem(this.vpnToggle);
 
             // Add a separator
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
@@ -74,6 +201,9 @@ const MyPopup = GObject.registerClass(
                 { reactive: false }
             );
             this.menu.addMenuItem(this._vpninfo);
+
+            //Open and close menu
+            this.menu.connect('open-state-changed', this._refreshstatus.bind(this));
         }
 
         // VPN Toggle on or OFF
@@ -81,90 +211,47 @@ const MyPopup = GObject.registerClass(
             if (value) {
                 this._icon.icon_name = vpnON;
                 log('Toggle has been turned ON!'); //Main.notify('Toggle has been turned ON!');
-                let newipAddress= await this._vpnConnect();
-                this._vpninfo.label.text = "IP Address: " + newipAddress; // Need to look into this prints promise right now
-            } 
+            }
             else {
                 this._icon.icon_name = vpnOFF;
                 log('Toggle has been turned OFF!'); //Main.notify('Toggle has been turned OFF!');
 
-                this._vpninfo.label.text = this._vpnDisconnect();               
             }
             return Clutter.EVENT_PROPAGATE;
         }
 
-        async _vpnConnect() {
-            // Return True or false based on Connection Status
-            try{
-                let updatedIP = await this._getIP();
-                return updatedIP;
-            }
-            catch(e){
-                updatedIP = "Error";
-                return updatedIP;
-            }
-        }
-    
-        _vpnDisconnect() {
-            // Return true or false based on Disconnection status
-            this._newip = "Disconnected";
-            return this._newip;
+        async getVPNstatusDict(){
+            var dict = await this.NordVPNhandler.getvpnstatus().catch((e) => {
+                        log(e)
+                        });
+            return dict;
         }
 
-        async _getIP(input = null, cancellable = null) {
-            try{
-                let fullStatus, newval;
-                let cancelId = 0;
-                let flags = (Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
-            
-                let proc = new Gio.Subprocess({
-                    argv: this._commands.status,
-                    flags: flags
-                });
-                proc.init(cancellable);
-                if (cancellable instanceof Gio.Cancellable) {
-                    cancelId = cancellable.connect(() => proc.force_exit());
+        async _refreshstatus(menu, open) {
+            try {
+                if (open) {
+                    let newipAddress;
+                    var value = await this.getVPNstatusDict();
+
+                    if(value["Status"]==="connected"){
+                        this.vpnToggle.setToggleState(true);
+                        this._icon.icon_name = vpnON;
+
+                        newipAddress = value["IP"];
+                        this._vpninfo.label.text = "IP Address: " + newipAddress;
+                    }
+                    else{
+                        this.vpnToggle.setToggleState(false);
+                        this._icon.icon_name = vpnOFF;
+
+                        this._vpninfo.label.text = value["Status"][0].toUpperCase() + value["Status"].substring(1);
+                    }
+                    log("open");
                 }
-            
-                // let status =  
-                return new Promise((resolve, reject) => {
-                    proc.communicate_utf8_async(input, null, (proc, res) => {
-                        try {
-                            let [, stdout, stderr] = proc.communicate_utf8_finish(res);
-                            let status = proc.get_exit_status();
-                            if (status !== 0) {
-                                throw new Gio.IOErrorEnum({
-                                    code: Gio.io_error_from_errno(status),
-                                    message: stderr ? stderr.trim() : GLib.strerror(status)
-                                });
-                            }                           
-                            if (stdout instanceof Uint8Array) {
-                                fullStatus = imports.byteArray.toString(stdout).trim();
-                            } else {
-                                fullStatus = stdout.toString().trim();
-                            }
-                            fullStatus = fullStatus.slice(fullStatus.indexOf("Status:"), fullStatus.length).trim(); // Trims off "\u000d-\u000d  \u000d\u000d-\u000d  \u000d"
-                            const result = fullStatus.split('\n'); // Joins everything to one sentence
-                            const statusLine = result.find((line) => line.includes("Status:"));
-                            const vpnstatus = statusLine ? statusLine.replace("Status:", "").trim() : "Unknown"; // Get connected or disconnected
-                            if (vpnstatus.toLowerCase() === "connected") {
-                                newval = result.find((line) => line.includes("IP:")) ? (result.find((line) => line.includes("IP:"))).replace("IP:", "").trim() : "Unknown";
-                                resolve(newval);               
-                            }
-                            else {
-                                newval = "Not Connected";
-                                resolve(newval);
-                            }
-                        } catch (e) {
-                            reject(e);
-                        } finally {
-                            if (cancelId > 0) {
-                                cancellable.disconnect(cancelId);
-                            }
-                        }
-                    });
-                });
-            }catch (e) {
+                else {
+                    log("close");
+                }
+            } catch (e) {
                 log(e);
             }
         }
@@ -177,7 +264,7 @@ function init() {
 
 function enable() {
     myPopup = new MyPopup();
-    Main.panel.addToStatusArea('testPopup', myPopup, 1);
+    Main.panel.addToStatusArea('NordVPN', myPopup, 1);
 }
 
 function disable() {
