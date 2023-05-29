@@ -177,16 +177,14 @@ const MyPopup = GObject.registerClass(
             this.add_child(this._icon);
 
             //Add VPN Toggle switch
-            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("Nord VPN",
-                this.vpnTogglestatus, {
-            });
+            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("  Nord VPN", this.vpnTogglestatus, {});
             this.vpnToggle.connect('toggled', this._toggleOutput.bind(this));
             this.menu.addMenuItem(this.vpnToggle);
 
-            // Add a separator
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            // Add a VPN Status separator
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("VPN Status"));
 
-            // This is where IP info will go
+            // Add a VPN Status submenu
             this._vpninfo = new PopupMenu.PopupSubMenuMenuItem(this.vpnStatus, { reactive: true });
             this.menu.addMenuItem(this._vpninfo);
             // Add Submenu
@@ -199,7 +197,8 @@ const MyPopup = GObject.registerClass(
             this._vpninfo.menu.addMenuItem(this.country);
             this._vpninfo.menu.addMenuItem(this.city);
 
-            // Updates and updates the Panel status after every 20 seconds
+
+            // Updates and updates the Panel status after every 30 seconds
             this._update();
             timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, (30 * 1000), () => {
                 this._update();
@@ -241,7 +240,7 @@ const MyPopup = GObject.registerClass(
                     this.vpnToggle.setToggleState(true);
                     this._icon.icon_name = vpnON;
                     this._vpninfo.label.text    = "Status   : " + value["Status"][0].toUpperCase() + value["Status"].substring(1);
-                    this._vpninfo.setOrnament(PopupMenu.Ornament.CHECK);
+                    this._vpninfo.icon.icon_name = "livepatch_on";
                     this.ip.label.text          = "IP : " + value["IP"];
                     this.ip.show();
                     this.servername.label.text  = "HostName : " + value["Hostname"]; //.toUpperCase()
@@ -255,7 +254,7 @@ const MyPopup = GObject.registerClass(
                     this.vpnToggle.setToggleState(false);
                     this._icon.icon_name = vpnOFF;
                     this._vpninfo.label.text    = "Status   : " + value["Status"][0].toUpperCase() + value["Status"].substring(1);
-                    this._vpninfo.setOrnament(PopupMenu.Ornament.NONE);
+                    this._vpninfo.icon.icon_name = "livepatch_warning";
                     this.ip.label.text          = "" ; this.ip.hide();
                     this.servername.label.text  = "" ; this.servername.hide();
                     this.country.label.text     = "" ; this.country.hide();
@@ -265,7 +264,7 @@ const MyPopup = GObject.registerClass(
                     this.vpnToggle.setToggleState(false);
                     this._icon.icon_name = vpnUnknown;
                     this._vpninfo.label.text    = "Status   : " + "Error";
-                    this._vpninfo.setOrnament(PopupMenu.Ornament.NONE);
+                    this._vpninfo.icon.icon_name = "livepatch_warning";
                     this.ip.label.text          = "" ; this.ip.hide();
                     this.servername.label.text  = "" ; this.servername.hide();
                     this.country.label.text     = "" ; this.country.hide();
@@ -276,7 +275,7 @@ const MyPopup = GObject.registerClass(
                 this.vpnToggle.setToggleState(false);
                 this._icon.icon_name = vpnUnknown;
                 this._vpninfo.label.text    = "Status   : " + "Error";
-                this._vpninfo.setOrnament(PopupMenu.Ornament.NONE);
+                this._vpninfo.icon.icon_name = "livepatch_warning";
                 this.ip.label.text          = "" ; this.ip.hide();
                 this.servername.label.text  = "" ; this.servername.hide();
                 this.country.label.text     = "" ; this.country.hide();

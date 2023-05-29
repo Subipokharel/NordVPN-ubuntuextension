@@ -37,7 +37,8 @@ def main():
         cities = getCity(country)
         dict.update({country : cities})
     # Save file as json
-    saveToJSON(dict)
+    #saveToJSON(dict)
+    return dict
 
 if __name__== "__main__":
     main()
