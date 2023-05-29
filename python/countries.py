@@ -25,7 +25,7 @@ def getCity(countryName):
 def saveToJSON(dictionary):
     json_object = json.dumps(dictionary, indent=4)
     # Writing to sample.json
-    with open("./scripts/nordvpncountry.json", "w") as outfile:
+    with open("./data/nordvpncountry.json", "w") as outfile:
         outfile.write(json_object)
 
 def main():
