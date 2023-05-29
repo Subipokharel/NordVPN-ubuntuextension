@@ -163,50 +163,60 @@ class NordVPN {
 const MyPopup = GObject.registerClass(
     class MyPopup extends PanelMenu.Button {
         _init() {
-            super._init(0);
-            
             //Initialize
+            super._init(0);
             this.NordVPNhandler = new NordVPN();
             this.vpnTogglestatus = false;
-            this.ipAddress = "";
+            this.vpnStatus = "";
 
             // Menu Icon
-            this._icon = new St.Icon({ icon_name: vpnUnknown, style_class: 'system-status-icon', });
+            this._icon = new St.Icon({
+                icon_name: vpnUnknown,
+                style_class: 'system-status-icon'
+            });
             this.add_child(this._icon);
+
             //Add VPN Toggle switch
-            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem('Nord VPN', this.vpnTogglestatus, {});
+            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("Nord VPN",
+                this.vpnTogglestatus, {
+            });
             this.vpnToggle.connect('toggled', this._toggleOutput.bind(this));
             this.menu.addMenuItem(this.vpnToggle);
+
             // Add a separator
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
             // This is where IP info will go
-            this._vpninfo = new PopupMenu.PopupMenuItem(this.ipAddress, { reactive: false });
+            this._vpninfo = new PopupMenu.PopupSubMenuMenuItem(this.vpnStatus, { reactive: true });
             this.menu.addMenuItem(this._vpninfo);
-            
+            // Add Submenu
+            this.ip = new PopupMenu.PopupMenuItem("IP : ");
+            this.servername = new PopupMenu.PopupMenuItem("HostName : ");
+            this.country = new PopupMenu.PopupMenuItem("Country : ");
+            this.city = new PopupMenu.PopupMenuItem("City : ");
+            this._vpninfo.menu.addMenuItem(this.ip);
+            this._vpninfo.menu.addMenuItem(this.servername);
+            this._vpninfo.menu.addMenuItem(this.country);
+            this._vpninfo.menu.addMenuItem(this.city);
+
             // Updates and updates the Panel status after every 20 seconds
             this._update();
-            timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, (20 * 1000), () => {
+            timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, (30 * 1000), () => {
                 this._update();
                 return GLib.SOURCE_CONTINUE;
             });
+
             // Open and close menu
             this.menu.connect('open-state-changed', this._menuopen.bind(this));
         }
 
         // VPN Toggle on or OFF
         async _toggleOutput(widget, value) {
-            let val;
-            if (value) {
-                // log('Toggle has been turned ON!');
-                this.NordVPNhandler._vpnConnect();
-            }
-            else {
-                // log('Toggle has been turned OFF!');
-                this.NordVPNhandler._vpnDisconnect();
-            }
-            await this._update();
+            if (value) { this.NordVPNhandler._vpnConnect(); }
+            else { this.NordVPNhandler._vpnDisconnect(); }
 
-            return Clutter.EVENT_PROPAGATE; 
+            await this._update();
+            return Clutter.EVENT_PROPAGATE;
         }
 
         async getVPNstatusDict() {
@@ -218,9 +228,7 @@ const MyPopup = GObject.registerClass(
 
         async _menuopen(menu, open) {
             try {
-                if (open) {
-                    await this._update();
-                }
+                if (open) { await this._update(); }
             } catch (err) {
                 log(err);
             }
@@ -228,30 +236,51 @@ const MyPopup = GObject.registerClass(
 
         async _update() {
             try {
-                let newipAddress;
                 var value = await this.getVPNstatusDict();
-                // Check value and update tray icon
                 if (value["Status"] === "connected") {
                     this.vpnToggle.setToggleState(true);
                     this._icon.icon_name = vpnON;
-                    newipAddress = value["IP"];
-                    this._vpninfo.label.text = "IP Address: " + newipAddress;
+                    this._vpninfo.label.text    = "Status   : " + value["Status"][0].toUpperCase() + value["Status"].substring(1);
+                    this._vpninfo.setOrnament(PopupMenu.Ornament.CHECK);
+                    this.ip.label.text          = "IP : " + value["IP"];
+                    this.ip.show();
+                    this.servername.label.text  = "HostName : " + value["Hostname"]; //.toUpperCase()
+                    this.servername.show();
+                    this.country.label.text     = "Country : " + value["Country"][0].toUpperCase() + value["Country"].substring(1);
+                    this.country.show();
+                    this.city.label.text        = "City : " + value["City"][0].toUpperCase() + value["City"].substring(1);
+                    this.city.show();
                 }
                 else if (value["Status"] === "disconnected") {
                     this.vpnToggle.setToggleState(false);
                     this._icon.icon_name = vpnOFF;
-                    this._vpninfo.label.text = value["Status"][0].toUpperCase() + value["Status"].substring(1);
+                    this._vpninfo.label.text    = "Status   : " + value["Status"][0].toUpperCase() + value["Status"].substring(1);
+                    this._vpninfo.setOrnament(PopupMenu.Ornament.NONE);
+                    this.ip.label.text          = "" ; this.ip.hide();
+                    this.servername.label.text  = "" ; this.servername.hide();
+                    this.country.label.text     = "" ; this.country.hide();
+                    this.city.label.text        = "" ; this.city.hide();
                 }
                 else {
                     this.vpnToggle.setToggleState(false);
                     this._icon.icon_name = vpnUnknown;
-                    this._vpninfo.label.text = "Error";
+                    this._vpninfo.label.text    = "Status   : " + "Error";
+                    this._vpninfo.setOrnament(PopupMenu.Ornament.NONE);
+                    this.ip.label.text          = "" ; this.ip.hide();
+                    this.servername.label.text  = "" ; this.servername.hide();
+                    this.country.label.text     = "" ; this.country.hide();
+                    this.city.label.text        = "" ; this.city.hide();
                 }
             }
-            catch {
+            catch (e) {
                 this.vpnToggle.setToggleState(false);
                 this._icon.icon_name = vpnUnknown;
-                this._vpninfo.label.text = "Error";
+                this._vpninfo.label.text    = "Status   : " + "Error";
+                this._vpninfo.setOrnament(PopupMenu.Ornament.NONE);
+                this.ip.label.text          = "" ; this.ip.hide();
+                this.servername.label.text  = "" ; this.servername.hide();
+                this.country.label.text     = "" ; this.country.hide();
+                this.city.label.text        = "" ; this.city.hide();
             }
         }
     }

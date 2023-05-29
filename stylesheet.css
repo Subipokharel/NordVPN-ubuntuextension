@@ -1,1 +1,10 @@
 /* Add your custom extension styling here */
+.statuslabel {
+    padding: 0px 24px;
+}
+
+.popupSubmenu {
+    padding: 5px 10px 0 24px;
+    font-size: smaller;
+    color: blue;
+}
