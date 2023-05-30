@@ -353,5 +353,7 @@ function enable() {
 function disable() {
     GLib.Source.remove(timeout);
     timeout = null;
+    myPopup.stop();
     myPopup.destroy();
+    myPopup = null;
 }
