@@ -159,10 +159,9 @@ class NordVPN {
         }
     }
 
-    async vpncountrylist() {
+    // Run Command to list countries and return list of countries
+    async listvpncountry() {
         try {
-            // let countriesToreturn = ["Albania", "United_States"];
-            // return countriesToreturn;
             let countriesToreturn = await this._execCommand(this._commands.countries);
             return countriesToreturn;
         }
@@ -209,11 +208,11 @@ const MyPopup = GObject.registerClass(
             this._vpninfo.menu.addMenuItem(this.country);
             this._vpninfo.menu.addMenuItem(this.city);
 
-            // Add a VPN Status separator
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("Change Countries"));
             // Add Countries
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("VPN Settings"));
             this.countrySection = new PopupMenu.PopupSubMenuMenuItem("Countries");
             this.menu.addMenuItem(this.countrySection);
+            this.countrySection.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("Change Countries"));
             this.countryname = new PopupMenu.PopupMenuSection("SectionA");
             this.countrySection.menu.addMenuItem(this.countryname);
 
@@ -248,17 +247,29 @@ const MyPopup = GObject.registerClass(
             return dict;
         }
 
-        // Returns list of countries 
+        // Call NordVPN class and run change country
+        async _changecountries(countryname){
+            var value = await this.getVPNstatusDict();
+            // Check if VPN is already connected to user selected country
+            if (value["Country"].toLowerCase().replace(/ /g,"_") === countryname.toLowerCase()) {
+                Main.notify(`"VPN already in ${countryname}"`);
+            }
+            else{
+                Main.notify(`"Changing NordVPN country to ${countryname}..."`);
+                this.changecountry = ['nordvpn', 'c', countryname];
+                this.NordVPNhandler._execCommand(this.changecountry);
+            }
+        }
+
+        // Returns list of countries
         async getCountriesList(){
             try{
-                let listValue = await this.NordVPNhandler.vpncountrylist();
+                let listValue = await this.NordVPNhandler.listvpncountry();
                 listValue = listValue.slice(listValue.indexOf("A"), listValue.length).trim();
                 const result = listValue.split(',');
                 result.forEach((country) => {
-                    let singleCountry = country.trim();
-                    this.countryname.addAction(country, () => 
-                        log(`['nordvpn', 'cities', '${singleCountry}']`
-                    ));
+                        let singleCountry = country.trim();
+                        this.countryname.addAction(singleCountry, () => this._changecountries(singleCountry));
                 });
             } catch (err) {
                 log(err);
@@ -283,14 +294,12 @@ const MyPopup = GObject.registerClass(
                     this._icon.icon_name = vpnON;
                     this._vpninfo.label.text = "Status   : " + value["Status"][0].toUpperCase() + value["Status"].substring(1);
                     this._vpninfo.icon.icon_name = "livepatch_on";
-                    this.ip.label.text = "IP : " + value["IP"];
-                    this.ip.show();
-                    this.servername.label.text = "HostName : " + value["Hostname"]; //.toUpperCase()
-                    this.servername.show();
-                    this.country.label.text = "Country : " + value["Country"][0].toUpperCase() + value["Country"].substring(1);
-                    this.country.show();
-                    this.city.label.text = "City : " + value["City"][0].toUpperCase() + value["City"].substring(1);
-                    this.city.show();
+                    this.ip.label.text = "IP : " + value["IP"];     this.ip.show();
+                    this.servername.label.text = "HostName : " + value["Hostname"];     this.servername.show();
+                    this.country.label.text = "Country : " + value["Country"][0].toUpperCase() + value["Country"].substring(1);     this.country.show();
+                    this.city.label.text = "City : " + value["City"][0].toUpperCase() + value["City"].substring(1);     this.city.show();
+                    //show countries
+                    this.countrySection.show();
                 }
                 else if (value["Status"] === "disconnected") {
                     this.vpnToggle.setToggleState(false);
@@ -301,6 +310,8 @@ const MyPopup = GObject.registerClass(
                     this.servername.label.text = ""; this.servername.hide();
                     this.country.label.text = ""; this.country.hide();
                     this.city.label.text = ""; this.city.hide();
+                    //hide countries
+                    this.countrySection.hide();
                 }
                 else {
                     this.vpnToggle.setToggleState(false);
@@ -311,6 +322,8 @@ const MyPopup = GObject.registerClass(
                     this.servername.label.text = ""; this.servername.hide();
                     this.country.label.text = ""; this.country.hide();
                     this.city.label.text = ""; this.city.hide();
+                    //hide countries
+                    this.countrySection.hide();
                 }
             }
             catch (e) {
@@ -322,6 +335,8 @@ const MyPopup = GObject.registerClass(
                 this.servername.label.text = ""; this.servername.hide();
                 this.country.label.text = ""; this.country.hide();
                 this.city.label.text = ""; this.city.hide();
+                //hide countries
+                this.countrySection.hide();
             }
         }
     }
