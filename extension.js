@@ -53,7 +53,7 @@ class NordVPN {
     async _vpnConnect() {
         try {
             Main.notify("Connecting to VPN...");
-            this._execCommand(this._commands.connect);
+            await this._execCommand(this._commands.connect).catch((err) => { log(err) });
         }
         catch (err) {
             log(err);
@@ -64,7 +64,7 @@ class NordVPN {
     async _vpnDisconnect() {
         try {
             Main.notify("Disconnecting VPN...");
-            this._execCommand(this._commands.disconnect);
+            await this._execCommand(this._commands.disconnect).catch((err) => { log(err) });
         }
         catch (err) {
             log(err);
@@ -173,7 +173,7 @@ class NordVPN {
     // Run command to list countries and return list of countries
     async listvpncountries() {
         try {
-            let countriesToreturn = await this._execCommand(this._commands.listcountries);
+            let countriesToreturn = await this._execCommand(this._commands.listcountries).catch((err) => { log(err) });
             return countriesToreturn;
         }
         catch (err) {
@@ -190,7 +190,7 @@ class NordVPN {
                 Main.notify(`"VPN already in ${countryname}"`);
             } else {
                 Main.notify(`"Changing NordVPN country to ${countryname}..."`);
-                this._execCommand(this._commands.switchcountry(countryname));
+                await this._execCommand(this._commands.switchcountry(countryname)).catch((err) => { log(err) });
             }
         } catch (err) {
             log(err);
@@ -200,7 +200,7 @@ class NordVPN {
     // Run command to list cities and return list of cities
     async listvpncities(countryname) {
         try {
-            let citiesToreturn = await this._execCommand(this._commands.listcities(countryname));
+            let citiesToreturn = await this._execCommand(this._commands.listcities(countryname)).catch((err) => { log(err) });
             return citiesToreturn;
         }
         catch (err) {
@@ -217,7 +217,7 @@ class NordVPN {
                 Main.notify(`"VPN already in ${cityname}"`);
             } else {
                 Main.notify(`"Changing NordVPN in ${countryname} to ${cityname}..."`);
-                this._execCommand(this._commands.switchcity(countryname, cityname));
+                await this._execCommand(this._commands.switchcity(countryname, cityname)).catch((err) => { log(err) });
             }
         } catch (err) {
             log(err);
@@ -300,7 +300,7 @@ const MyPopup = GObject.registerClass(
             if (value) { this.NordVPNhandler._vpnConnect(); }
             else { this.NordVPNhandler._vpnDisconnect(); }
 
-            await this._update();
+            await this._update().catch((err) => { log(err) });
             return Clutter.EVENT_PROPAGATE;
         }
 
@@ -316,7 +316,7 @@ const MyPopup = GObject.registerClass(
         async getCountriesList() {
             try {
                 let listValue = await this.NordVPNhandler.listvpncountries();
-                listValue = listValue.slice(listValue.indexOf(listValue[listValue.search(/[A-Z]/)]), listValue.length); // listValue = listValue.slice(listValue.indexOf("A"), listValue.length).trim();
+                listValue = listValue.slice(listValue.indexOf(listValue[listValue.search(/[A-Z]/)]), listValue.length);
                 const result = listValue.split(',');
                 result.forEach((country) => {
                     let singleCountry = country.trim();
@@ -392,7 +392,7 @@ const MyPopup = GObject.registerClass(
         // When the VPN panel is clicked updates the values
         async _menuopen(menu, open) {
             try {
-                if (open) { await this._update(); }
+                if (open) { await this._update().catch((err) => { log(err) }); }
             } catch (err) {
                 log(err);
             }
@@ -401,7 +401,7 @@ const MyPopup = GObject.registerClass(
         // Retrieves VPN status and updates values as necessary
         async _update() {
             try {
-                var value = await this.getVPNstatusDict();
+                var value = await this.getVPNstatusDict().catch((err) => { log(err) });
                 if (value["Status"] === "connected") {
                     this.vpnToggle.setToggleState(true);
                     this._icon.icon_name = vpnON;
@@ -419,8 +419,8 @@ const MyPopup = GObject.registerClass(
                     // Removes all values in the CityName PopupMenuSection - needed to get City section working
                     this.cityname.removeAll();
                     // Add label for connected country and connected city
-                    await this.addLabelActiveCountry(value);
-                    await this.addLabelActiveCity(value);
+                    await this.addLabelActiveCountry(value).catch((err) => { log(err) });
+                    await this.addLabelActiveCity(value).catch((err) => { log(err) });
                 }
                 else if (value["Status"] === "disconnected") {
                     this.vpnToggle.setToggleState(false);
