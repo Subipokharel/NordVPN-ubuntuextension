@@ -27,6 +27,8 @@ let timeout = 0;
 const vpnON = "network-vpn-symbolic";
 const vpnOFF = "network-vpn-disconnected-symbolic";
 const vpnUnknown = "network-vpn-no-route-symbolic.svg"
+const vpnConnected = "livepatch_on";
+const vpnDisconnected = "livepatch_warning";
 
 class NordVPN {
     constructor() {
@@ -38,7 +40,10 @@ class NordVPN {
             switchcountry: function (nameOfcountry) {
                 return ['nordvpn', 'c', nameOfcountry];
             },
-            switchcity: function(nameOfcountry, nameOfcity){
+            listcities: function (nameOfcountry) {
+                return ['nordvpn', 'cities', nameOfcountry];
+            },
+            switchcity: function (nameOfcountry, nameOfcity) {
                 return ['nordvpn', 'c', nameOfcountry, nameOfcity];
             }
         }
@@ -166,7 +171,7 @@ class NordVPN {
     }
 
     // Run command to list countries and return list of countries
-    async listvpncountry() {
+    async listvpncountries() {
         try {
             let countriesToreturn = await this._execCommand(this._commands.listcountries);
             return countriesToreturn;
@@ -191,6 +196,33 @@ class NordVPN {
             log(err);
         }
     }
+
+    // Run command to list cities and return list of cities
+    async listvpncities(countryname) {
+        try {
+            let citiesToreturn = await this._execCommand(this._commands.listcities(countryname));
+            return citiesToreturn;
+        }
+        catch (err) {
+            log(err);
+        }
+    }
+
+    // Run command to change city
+    async changeVPNcity(countryname, cityname) {
+        try {
+            var value = await this.getvpnstatus().catch((err) => { log(err) });
+            // Check if VPN is already connected to user selected country
+            if (value["City"].toLowerCase().replace(/ /g, "_") === cityname.toLowerCase()) {
+                Main.notify(`"VPN already in ${cityname}"`);
+            } else {
+                Main.notify(`"Changing NordVPN in ${countryname} to ${cityname}..."`);
+                this._execCommand(this._commands.switchcity(countryname, cityname));
+            }
+        } catch (err) {
+            log(err);
+        }
+    }
 }
 
 const MyPopup = GObject.registerClass(
@@ -202,6 +234,7 @@ const MyPopup = GObject.registerClass(
             this.vpnTogglestatus = false;
             this.vpnStatus = "";
             this.countrylist = [];
+            this.citylist = [];
 
             // Menu Icon
             this._icon = new St.Icon({
@@ -231,16 +264,25 @@ const MyPopup = GObject.registerClass(
             this._vpninfo.menu.addMenuItem(this.country);
             this._vpninfo.menu.addMenuItem(this.city);
 
-            // Add Countries
+            // Add shell for countries in PanelMenu
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("VPN Settings"));
-            this.countrySection = new PopupMenu.PopupSubMenuMenuItem("Countries");
+            this.countrySection = new PopupMenu.PopupSubMenuMenuItem("Country");
             this.menu.addMenuItem(this.countrySection);
-            this.countrySection.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("Change Countries"));
+            this.countrySection.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("Change Country"));
             this.countryname = new PopupMenu.PopupMenuSection("SectionA");
             this.countrySection.menu.addMenuItem(this.countryname);
 
+            // Add shell for cities in PanelMenu
+            this.citySection = new PopupMenu.PopupSubMenuMenuItem("City");
+            this.menu.addMenuItem(this.citySection);
+            this.citySection.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("Change City"));
+            this.cityname = new PopupMenu.PopupMenuSection("SectionA");
+            this.citySection.menu.addMenuItem(this.cityname);
+
             // Add Countries to dropdown
             this.getCountriesList();
+            // Add Cities to dropdown
+            this.getCitiesList();
 
             // Updates and updates the Panel status after every 30 seconds
             this._update();
@@ -273,14 +315,74 @@ const MyPopup = GObject.registerClass(
         // Returns list of countries and adds on click action to switch countries when Clicked on
         async getCountriesList() {
             try {
-                let listValue = await this.NordVPNhandler.listvpncountry();
-                listValue = listValue.slice(listValue.indexOf("A"), listValue.length).trim();
+                let listValue = await this.NordVPNhandler.listvpncountries();
+                listValue = listValue.slice(listValue.indexOf(listValue[listValue.search(/[A-Z]/)]), listValue.length); // listValue = listValue.slice(listValue.indexOf("A"), listValue.length).trim();
                 const result = listValue.split(',');
                 result.forEach((country) => {
                     let singleCountry = country.trim();
                     this.countrylist.push(
                         this.countryname.addAction(singleCountry, () => this.NordVPNhandler.changeVPNcountry(singleCountry))
                     );
+                });
+            } catch (err) {
+                log(err);
+            }
+        }
+
+        // Returns list of cities and adds on click action to switch cities when Clicked on
+        async getCitiesList() {
+            try {
+                var value = await this.getVPNstatusDict();
+                let listValue = await this.NordVPNhandler.listvpncities(value["Country"].toLowerCase().replace(/ /g, "_"));
+                listValue = listValue.slice(listValue.indexOf(listValue[listValue.search(/[A-Z]/)]), listValue.length);
+                const result = listValue.split(',');
+                result.forEach((city) => {
+                    let singleCity = city.trim(" ");
+                    this.citylist.push(
+                        this.cityname.addAction(singleCity, () => this.NordVPNhandler.changeVPNcity(value["Country"].toLowerCase().replace(/ /g, "_"), singleCity))
+                    );
+                });
+            } catch (err) {
+                log(err);
+            }
+        }
+
+        // Add label for connected country
+        async addLabelActiveCountry(value) {
+            try {
+                this.countrylist.forEach((item) => {
+                    if (item.label.text.toLowerCase().replace(/ /g, "_") === value["Country"].toLowerCase().replace(/ /g, "_")) {
+                        item.setOrnament(PopupMenu.Ornament.CHECK);
+                    } else {
+                        item.setOrnament(PopupMenu.Ornament.NONE);
+                    }
+                });
+            } catch (err) {
+                log(err);
+            }
+        }
+
+        // Add label for connected city
+        async addLabelActiveCity(value) {
+            try {
+                let listValue = await this.NordVPNhandler.listvpncities(value["Country"].toLowerCase().replace(/ /g, "_"));
+                listValue = listValue.slice(listValue.indexOf(listValue[listValue.search(/[A-Z]/)]), listValue.length);
+                const result = listValue.split(',');
+                // Add updated value of city
+                this.citylist = [];
+                result.forEach((city) => {
+                    let singleCity = city.trim(" ");
+                    this.citylist.push(
+                        this.cityname.addAction(singleCity, () => this.NordVPNhandler.changeVPNcity(value["Country"].toLowerCase().replace(/ /g, "_"), singleCity))
+                    );
+                });
+                // Re-add updated cities
+                this.citylist.forEach((item) => {
+                    if (item.label.text.toLowerCase().replace(/ /g, "_") === value["City"].toLowerCase().replace(/ /g, "_")) {
+                        item.setOrnament(PopupMenu.Ornament.CHECK);
+                    } else {
+                        item.setOrnament(PopupMenu.Ornament.NONE);
+                    }
                 });
             } catch (err) {
                 log(err);
@@ -304,59 +406,64 @@ const MyPopup = GObject.registerClass(
                     this.vpnToggle.setToggleState(true);
                     this._icon.icon_name = vpnON;
                     this._vpninfo.label.text = "Status   : " + value["Status"][0].toUpperCase() + value["Status"].substring(1);
-                    this._vpninfo.icon.icon_name = "livepatch_on";
+                    this._vpninfo.icon.icon_name = vpnConnected;
                     this.ip.label.text = "IP : " + value["IP"]; this.ip.show();
                     this.servername.label.text = "HostName : " + value["Hostname"]; this.servername.show();
                     this.country.label.text = "Country : " + value["Country"][0].toUpperCase() + value["Country"].substring(1); this.country.show();
                     this.city.label.text = "City : " + value["City"][0].toUpperCase() + value["City"].substring(1); this.city.show();
-                    // Show countries menu
-                    this.countrySection.show();
 
-                    // Add label for connected country
-                    this.countrylist.forEach((item) => {
-                        if(item.label.text.toLowerCase().replace(/ /g, "_") === value["Country"].toLowerCase().replace(/ /g, "_")){
-                            item.setOrnament(PopupMenu.Ornament.CHECK);
-                        }else{
-                            item.setOrnament(PopupMenu.Ornament.NONE);
-                        }
-                    });
+                    // Show countries and city menu
+                    this.countrySection.show();
+                    this.citySection.show();
+
+                    // Removes all values in the CityName PopupMenuSection - needed to get City section working
+                    this.cityname.removeAll();
+                    // Add label for connected country and connected city
+                    await this.addLabelActiveCountry(value);
+                    await this.addLabelActiveCity(value);
                 }
                 else if (value["Status"] === "disconnected") {
                     this.vpnToggle.setToggleState(false);
                     this._icon.icon_name = vpnOFF;
                     this._vpninfo.label.text = "Status   : " + value["Status"][0].toUpperCase() + value["Status"].substring(1);
-                    this._vpninfo.icon.icon_name = "livepatch_warning";
+                    this._vpninfo.icon.icon_name = vpnDisconnected;
                     this.ip.label.text = ""; this.ip.hide();
                     this.servername.label.text = ""; this.servername.hide();
                     this.country.label.text = ""; this.country.hide();
                     this.city.label.text = ""; this.city.hide();
-                    // Hide countries
+
+                    // Hide countries and city
                     this.countrySection.hide();
+                    this.citySection.hide();
                 }
                 else {
                     this.vpnToggle.setToggleState(false);
                     this._icon.icon_name = vpnUnknown;
                     this._vpninfo.label.text = "Status   : " + "Error";
-                    this._vpninfo.icon.icon_name = "livepatch_warning";
+                    this._vpninfo.icon.icon_name = vpnDisconnected;
                     this.ip.label.text = ""; this.ip.hide();
                     this.servername.label.text = ""; this.servername.hide();
                     this.country.label.text = ""; this.country.hide();
                     this.city.label.text = ""; this.city.hide();
-                    // Hide countries
+
+                    // Hide countries and city
                     this.countrySection.hide();
+                    this.citySection.hide();
                 }
             }
             catch (e) {
                 this.vpnToggle.setToggleState(false);
                 this._icon.icon_name = vpnUnknown;
                 this._vpninfo.label.text = "Status   : " + "Error";
-                this._vpninfo.icon.icon_name = "livepatch_warning";
+                this._vpninfo.icon.icon_name = vpnDisconnected;
                 this.ip.label.text = ""; this.ip.hide();
                 this.servername.label.text = ""; this.servername.hide();
                 this.country.label.text = ""; this.country.hide();
                 this.city.label.text = ""; this.city.hide();
-                // Hide countries
+
+                // Hide countries and city
                 this.countrySection.hide();
+                this.citySection.hide();
             }
         }
     }
