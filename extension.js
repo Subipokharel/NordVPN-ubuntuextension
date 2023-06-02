@@ -45,7 +45,20 @@ class NordVPN {
             },
             switchcity: function (nameOfcountry, nameOfcity) {
                 return ['nordvpn', 'c', nameOfcountry, nameOfcity];
-            }
+            },
+            vpnsettings: ['nordvpn', 'settings'],
+            autoconnect: function (setStatus) {
+                return ['nordvpn', 'set', 'autoconnect', setStatus];
+            },
+            ipv6: function (setStatus) {
+                return ['nordvpn', 'set', 'ipv6', setStatus];
+            },
+            threatprotectionlite: function (setStatus) {
+                return ['nordvpn', 'set', 'threatProtectionlite', setStatus];
+            },
+            killswitch: function (setStatus) {
+                return ['nordvpn', 'set', 'killswitch', setStatus];
+            },
         }
     }
 
@@ -71,7 +84,7 @@ class NordVPN {
         }
     }
 
-    // Check VPN connection status
+    // Run command to check VPN connection status
     async getvpnstatus(input = null, cancellable = null) {
         try {
             let fullStatus,
@@ -123,7 +136,7 @@ class NordVPN {
         }
     }
 
-    // Execute command VPN
+    // Execute command
     async _execCommand(argv, input = null, cancellable = null) {
         try {
             let fullStatus,
@@ -170,7 +183,7 @@ class NordVPN {
         }
     }
 
-    // Run command to list countries and return list of countries
+    // Run command to list and return a list of countries
     async listvpncountries() {
         try {
             let countriesToreturn = await this._execCommand(this._commands.listcountries).catch((err) => { log(err) });
@@ -197,7 +210,7 @@ class NordVPN {
         }
     }
 
-    // Run command to list cities and return list of cities
+    // Run command to list and return a list of cities
     async listvpncities(countryname) {
         try {
             let citiesToreturn = await this._execCommand(this._commands.listcities(countryname)).catch((err) => { log(err) });
@@ -223,6 +236,23 @@ class NordVPN {
             log(err);
         }
     }
+
+    // Run command to get current VPN settings
+    async getvpnSettingsDict() {
+        try {
+            let newval = {};
+            let settings = await this._execCommand(this._commands.vpnsettings);
+            settings = settings.slice(settings.indexOf(settings[settings.search(/[A-Z]/)]), settings.length);
+            const result = settings.split('\n');
+            result.forEach(x => {
+                let item = x.split(": ");
+                newval[item[0]] = item[1].toLowerCase();
+            });
+            return newval;
+        } catch (err) {
+            log(err);
+        }
+    }
 }
 
 const MyPopup = GObject.registerClass(
@@ -232,6 +262,10 @@ const MyPopup = GObject.registerClass(
             super._init(0);
             this.NordVPNhandler = new NordVPN();
             this.vpnTogglestatus = false;
+            this.autoConnectstatus = false;
+            this.ipv6status = false;
+            this.threatProtectionstatus = false;
+            this.killSwitchstatus = false;
             this.vpnStatus = "";
             this.countrylist = [];
             this.citylist = [];
@@ -244,8 +278,8 @@ const MyPopup = GObject.registerClass(
             this.add_child(this._icon);
 
             //Add VPN Toggle switch
-            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("  Nord VPN", this.vpnTogglestatus, {});
-            this.vpnToggle.connect('toggled', this._toggleOutput.bind(this));
+            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("Nord VPN", this.vpnTogglestatus, {});
+            this.vpnToggle.connect('toggled', this._toggleVPNconnection.bind(this));
             this.menu.addMenuItem(this.vpnToggle);
 
             // Add a VPN Status separator
@@ -265,7 +299,7 @@ const MyPopup = GObject.registerClass(
             this._vpninfo.menu.addMenuItem(this.city);
 
             // Add shell for countries in PanelMenu
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("VPN Settings"));
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("Change VPN Settings"));
             this.countrySection = new PopupMenu.PopupSubMenuMenuItem("Country");
             this.menu.addMenuItem(this.countrySection);
             this.countrySection.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("Change Country"));
@@ -284,6 +318,23 @@ const MyPopup = GObject.registerClass(
             // Add Cities to dropdown
             this.getCitiesList();
 
+            // Additional settings
+            this.additionalSettings = new PopupMenu.PopupSubMenuMenuItem("Settings");
+            this.menu.addMenuItem(this.additionalSettings);
+            this.additionalSettings.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem("Toggle Settings"));
+            this.autoConnect = new PopupMenu.PopupSwitchMenuItem("Auto-Connect", this.autoConnectstatus, {});
+            this.autoConnect.connect('toggled', this._toggleAutoconnect.bind(this));
+            this.additionalSettings.menu.addMenuItem(this.autoConnect);
+            this.ipv6 = new PopupMenu.PopupSwitchMenuItem("IPv6", this.ipv6status, {});
+            this.ipv6.connect('toggled', this._toggleIPv6.bind(this));
+            this.additionalSettings.menu.addMenuItem(this.ipv6);
+            this.threatProtection = new PopupMenu.PopupSwitchMenuItem("Threat Protection", this.threatProtectionstatus, {});
+            this.threatProtection.connect('toggled', this._toggleThreatPrt.bind(this));
+            this.additionalSettings.menu.addMenuItem(this.threatProtection);
+            this.killSwitch = new PopupMenu.PopupSwitchMenuItem("Kill Switch", this.killSwitchstatus, {});
+            this.killSwitch.connect('toggled', this._togglekillSwitch.bind(this));
+            this.additionalSettings.menu.addMenuItem(this.killSwitch);
+
             // Updates and updates the Panel status after every 30 seconds
             this._update();
             timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, (30 * 1000), () => {
@@ -295,13 +346,82 @@ const MyPopup = GObject.registerClass(
             this.menu.connect('open-state-changed', this._menuopen.bind(this));
         }
 
-        // VPN Toggle on or OFF
-        async _toggleOutput(widget, value) {
+        // VPN toggle ON or OFF
+        async _toggleVPNconnection(widget, value) {
             if (value) { this.NordVPNhandler._vpnConnect(); }
             else { this.NordVPNhandler._vpnDisconnect(); }
 
             await this._update().catch((err) => { log(err) });
             return Clutter.EVENT_PROPAGATE;
+        }
+
+        // VPN toggle Autoconnect
+        async _toggleAutoconnect(widget, value) {
+            if (value) {
+                await this.NordVPNhandler._execCommand(this.NordVPNhandler._commands.autoconnect("enable")).catch((err) => { log(err) });
+            }
+            else {
+                await this.NordVPNhandler._execCommand(this.NordVPNhandler._commands.autoconnect("disable")).catch((err) => { log(err) });
+            }
+
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        // VPN toggle IPv6
+        async _toggleIPv6(widget, value) {
+            if (value) {
+                await this.NordVPNhandler._execCommand(this.NordVPNhandler._commands.ipv6("enable")).catch((err) => { log(err) });
+            }
+            else {
+                await this.NordVPNhandler._execCommand(this.NordVPNhandler._commands.ipv6("disable")).catch((err) => { log(err) });
+            }
+
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        // VPN toggle Threat Protection
+        async _toggleThreatPrt(widget, value) {
+            if (value) {
+                await this.NordVPNhandler._execCommand(this.NordVPNhandler._commands.threatprotectionlite("enable")).catch((err) => { log(err) });
+            }
+            else {
+                await this.NordVPNhandler._execCommand(this.NordVPNhandler._commands.threatprotectionlite("disable")).catch((err) => { log(err) });
+            }
+
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        // VPN toggle Kill Switch
+        async _togglekillSwitch(widget, value) {
+            if (value) {
+                await this.NordVPNhandler._execCommand(this.NordVPNhandler._commands.killswitch("enable")).catch((err) => { log(err) });
+            }
+            else {
+                await this.NordVPNhandler._execCommand(this.NordVPNhandler._commands.killswitch("disable")).catch((err) => { log(err) });
+            }
+
+            return Clutter.EVENT_PROPAGATE;
+        }
+
+        // Updates the VPN settings toggle status based on the settings
+        async updatevpnSettings() {
+            try {
+                let settings = await this.NordVPNhandler.getvpnSettingsDict().catch((err) => { log(err) });
+                // Toggle for Auto Connect status
+                if (settings['Auto-connect'] == "enabled") { this.autoConnect.setToggleState(true); }
+                else { this.autoConnect.setToggleState(false); }
+                // Toggle for IPv6 status
+                if (settings['IPv6'] == "enabled") { this.ipv6.setToggleState(true); }
+                else { this.ipv6.setToggleState(false); }
+                // Toggle for Threat Protection status
+                if (settings['Threat Protection Lite'] == "enabled") { this.threatProtection.setToggleState(true); }
+                else { this.threatProtection.setToggleState(false); }
+                // Toggle for Kill Switch status
+                if (settings['Kill Switch'] == "enabled") { this.killSwitch.setToggleState(true); }
+                else { this.killSwitch.setToggleState(false); }
+            } catch (err) {
+                log(err);
+            }
         }
 
         // Retrieves VPN status and returns it
@@ -402,6 +522,7 @@ const MyPopup = GObject.registerClass(
         async _update() {
             try {
                 var value = await this.getVPNstatusDict().catch((err) => { log(err) });
+                await this.updatevpnSettings().catch((err) => { log(err) });
                 if (value["Status"] === "connected") {
                     this.vpnToggle.setToggleState(true);
                     this._icon.icon_name = vpnON;
