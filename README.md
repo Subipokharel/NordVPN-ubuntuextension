@@ -8,7 +8,7 @@ This extension uses the NordVPN command line client, which can be set up as foll
 
 ## Installing the extension:
 
-Create a folder for the extension with:
+Create a folder for the extension with:v
 
 1. Create the Directory
 ```
@@ -34,9 +34,9 @@ mkdir ~/usr/.local/share/gnome-shell/extensions/nordvpn@subipokharel.github.com/
 
 
 
-|         VPN Country      |         VPN City          | 
-:-------------------------:|:-------------------------:|
-|![Alt text](screenshots/vpn_panel_country.png)|![Alt text](screenshots/vpn_panel_city.png)|  
+|         VPN Country      |         VPN City          |         VPN Settings          |
+:-------------------------:|:-------------------------:|:-----------------------------:|
+|![Alt text](screenshots/vpn_panel_country.png)|![Alt text](screenshots/vpn_panel_city.png)| ![Alt text](screenshots/vpn_panel_settings.png) |
 
 
 
