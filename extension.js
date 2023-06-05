@@ -74,8 +74,7 @@ class NordVPN {
         try {
             Main.notify("Connecting to VPN...");
             await this._execCommand(this._commands.connect).catch((err) => { log(err) });
-        }
-        catch (err) {
+        } catch (err) {
             log(err);
         }
     }
@@ -85,8 +84,7 @@ class NordVPN {
         try {
             Main.notify("Disconnecting VPN...");
             await this._execCommand(this._commands.disconnect).catch((err) => { log(err) });
-        }
-        catch (err) {
+        } catch (err) {
             log(err);
         }
     }
@@ -195,8 +193,7 @@ class NordVPN {
         try {
             let countriesToreturn = await this._execCommand(this._commands.listcountries).catch((err) => { log(err) });
             return countriesToreturn;
-        }
-        catch (err) {
+        } catch (err) {
             log(err);
         }
     }
@@ -222,8 +219,7 @@ class NordVPN {
         try {
             let citiesToreturn = await this._execCommand(this._commands.listcities(countryname)).catch((err) => { log(err) });
             return citiesToreturn;
-        }
-        catch (err) {
+        } catch (err) {
             log(err);
         }
     }
@@ -475,7 +471,7 @@ const MyPopup = GObject.registerClass(
                     let returnedCountry = value["Country"].toLowerCase().replace(/ /g, "_");
                     if (returnedCountry === singleCountry.toLowerCase()) {
                         this.connectedcountrylist.push(
-                            this.connectedcountryname.addAction(singleCountry, () => log(singleCountry))
+                            this.connectedcountryname.addAction(singleCountry, () => this.NordVPNhandler.changeVPNcountry(singleCountry))
                         );
                     }
                     else {
@@ -526,13 +522,14 @@ const MyPopup = GObject.registerClass(
                 result.forEach((country) => {
                     let singleCountry = country.trim();
                     let returnedCountry = value["Country"].toLowerCase().replace(/ /g, "_");
+                    let icon = Gio.icon_new_for_string(Me.path + '/icons/country/' + singleCountry.toLowerCase() + ".svg");
                     if (returnedCountry === singleCountry.toLowerCase()) {
                         this.connectedcountrylist.push(
-                            this.connectedcountryname.addAction(singleCountry, () => this.NordVPNhandler.changeVPNcountry(singleCountry))
+                            this.connectedcountryname.addAction(singleCountry, () => this.NordVPNhandler.changeVPNcountry(singleCountry), icon)
                         );
                     } else {
                         this.countrylist.push(
-                            this.countryname.addAction(singleCountry, () => this.NordVPNhandler.changeVPNcountry(singleCountry))
+                            this.countryname.addAction(singleCountry, () => this.NordVPNhandler.changeVPNcountry(singleCountry), icon)
                         );
                     }
                 });
