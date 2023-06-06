@@ -26,6 +26,7 @@ let myPopup;
 let timeout = 0;
 
 //Icon style --> usr/share/icons/Yaru/scalable/status
+const nordVPN = "nordvpn.svg";
 const vpnON = "network-vpn-symbolic.svg";
 const vpnOFF = "network-vpn-disconnected-symbolic.svg";
 const vpnUnknown = "network-vpn-no-route-symbolic.svg"
@@ -284,7 +285,7 @@ const MyPopup = GObject.registerClass(
             this.add_child(this._icon);
 
             //Add VPN Toggle switch
-            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("Nord VPN", this.vpnTogglestatus, {});
+            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("NordVPN", this.vpnTogglestatus, {});
             this.vpnToggle.connect('toggled', this._toggleVPNconnection.bind(this));
             this.menu.addMenuItem(this.vpnToggle);
 
@@ -631,6 +632,11 @@ const MyPopup = GObject.registerClass(
                     // Hide countries and city
                     this.countrySection.hide();
                     this.citySection.hide();
+                    // Removes all values in the CountryName, ConnectedCountryName, CityName and ConnectedCityName PopupMenuSection
+                    this.countryname.removeAll();
+                    this.connectedcountryname.removeAll();
+                    this.cityname.removeAll();
+                    this.connectedcityname.removeAll();
                 }
                 else {
                     this.vpnToggle.setToggleState(false);
@@ -645,6 +651,11 @@ const MyPopup = GObject.registerClass(
                     // Hide countries and city
                     this.countrySection.hide();
                     this.citySection.hide();
+                    // Removes all values in the CountryName, ConnectedCountryName, CityName and ConnectedCityName PopupMenuSection
+                    this.countryname.removeAll();
+                    this.connectedcountryname.removeAll();
+                    this.cityname.removeAll();
+                    this.connectedcityname.removeAll();
                 }
             }
             catch (e) {
@@ -660,6 +671,11 @@ const MyPopup = GObject.registerClass(
                 // Hide countries and city
                 this.countrySection.hide();
                 this.citySection.hide();
+                // Removes all values in the CountryName, ConnectedCountryName, CityName and ConnectedCityName PopupMenuSection
+                this.countryname.removeAll();
+                this.connectedcountryname.removeAll();
+                this.cityname.removeAll();
+                this.connectedcityname.removeAll();
             }
         }
     }
@@ -676,7 +692,6 @@ function enable() {
 function disable() {
     GLib.Source.remove(timeout);
     timeout = null;
-    myPopup.stop();
     myPopup.destroy();
     myPopup = null;
 }
