@@ -26,7 +26,7 @@ let myPopup;
 let timeout = 0;
 
 //Icon style --> usr/share/icons/Yaru/scalable/status
-const nordVPN = "nordvpn.svg";
+const nordVPN = Gio.icon_new_for_string(Me.path + '/icons/' + "nordvpn.svg");;
 const vpnON = "network-vpn-symbolic.svg";
 const vpnOFF = "network-vpn-disconnected-symbolic.svg";
 const vpnUnknown = "network-vpn-no-route-symbolic.svg"
@@ -285,8 +285,13 @@ const MyPopup = GObject.registerClass(
             this.add_child(this._icon);
 
             //Add VPN Toggle switch
-            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("NordVPN", this.vpnTogglestatus, {});
+            this.menuItem = new PopupMenu.PopupImageMenuItem('NordVPN', nordVPN, {
+                reactive    : false, 
+                style_class : 'menuitemstyle'
+            });
+            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("", this.vpnTogglestatus, {});            
             this.vpnToggle.connect('toggled', this._toggleVPNconnection.bind(this));
+            this.vpnToggle.insert_child_below(this.menuItem, null);
             this.menu.addMenuItem(this.vpnToggle);
 
             // Add a VPN Status separator
