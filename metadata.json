@@ -1,9 +1,12 @@
 {
-  "name": "NordVPN",
+  "name": "Nord VPN",
   "description": "This extension displays the status of NordVPN in the panel.",
+  "gettext-domain": "Nord-VPN",
   "uuid": "nordvpn@Subipokharel.github.com",
-  "version": 1,
+  "version": 3,
+  "settings-schema": "org.gnome.shell.extensions.subinordvpn",
   "shell-version": [
     "42"
-  ] 
+  ],
+  "url":"https://github.com/Subipokharel/nordvpn-subipokharel.github.com"
 }
