@@ -18,14 +18,13 @@
 /* exported init */
 const { Gtk, Clutter, Gio, St, GObject, GLib } = imports.gi;
 const Main = imports.ui.main;
+const Mainloop = imports.mainloop;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
-let myPopup;
-let timeout = 0;
 
-//Icon style --> usr/share/icons/Yaru/scalable/status
+let myPopup;
 const nordVPN = Gio.icon_new_for_string(Me.path + '/icons/' + "nordvpn.svg");;
 const vpnON = "network-vpn-symbolic.svg";
 const vpnOFF = "network-vpn-disconnected-symbolic.svg";
@@ -35,6 +34,11 @@ const vpnDisconnected = "livepatch_warning.svg";
 const countryicon = "earth-icon.svg";
 const cityicon = "city-buildings.svg";
 
+const vpnPosition = {
+    CENTER: 0,
+    RIGHT: 1,
+    LEFT: 2
+};
 class NordVPN {
     constructor() {
         this._commands = {
@@ -263,7 +267,11 @@ const MyPopup = GObject.registerClass(
     class MyPopup extends PanelMenu.Button {
         _init() {
             //Initialize
-            super._init(0);
+            // super._init(0);
+            super._init(0, 'MyPopup', false);
+            this._settings = ExtensionUtils.getSettings("org.gnome.shell.extensions.subinordvpn");
+
+            this._refreshTimeoutId = null;
             this.NordVPNhandler = new NordVPN();
             this.vpnTogglestatus = false;
             this.autoConnectstatus = false;
@@ -286,10 +294,10 @@ const MyPopup = GObject.registerClass(
 
             //Add VPN Toggle switch
             this.menuItem = new PopupMenu.PopupImageMenuItem('NordVPN', nordVPN, {
-                reactive    : false, 
-                style_class : 'menuitemstyle'
+                reactive: false,
+                style_class: 'menuitemstyle'
             });
-            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("", this.vpnTogglestatus, {});            
+            this.vpnToggle = new PopupMenu.PopupSwitchMenuItem("", this.vpnTogglestatus, {});
             this.vpnToggle.connect('toggled', this._toggleVPNconnection.bind(this));
             this.vpnToggle.insert_child_below(this.menuItem, null);
             this.menu.addMenuItem(this.vpnToggle);
@@ -363,15 +371,35 @@ const MyPopup = GObject.registerClass(
             this.notify.connect('toggled', this._toggleNotify.bind(this));
             this.additionalSettings.menu.addMenuItem(this.notify);
 
-            // Updates and updates the Panel status after every 30 seconds
+            // Update VPN panel
             this._update();
-            timeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, (30 * 1000), () => {
-                this._update();
-                return GLib.SOURCE_CONTINUE;
-            });
-
+            // Updates the Panel status after an interval
+            this._initializeTimer();
             // Open and close menu
             this.menu.connect('open-state-changed', this._menuopen.bind(this));
+        }
+
+        // Destroy old timer and start new
+        _updateTimeChanged() {
+            this._destroyTimer();
+            this._initializeTimer();
+        }
+
+        // Deletes and reinitializes the timer
+        _destroyTimer() {
+            if (this._refreshTimeoutId != null) {
+                Mainloop.source_remove(this._refreshTimeoutId);
+                this._refreshTimeoutId = null;
+            }
+        }
+
+        // Updates the Panel status after an interval
+        _initializeTimer() {
+            let update_time = this._settings.get_int('interval-time');
+            this._refreshTimeoutId = Mainloop.timeout_add_seconds(update_time, (self) => {
+                this._update();
+                return true;
+            });
         }
 
         // VPN toggle ON or OFF
@@ -590,7 +618,9 @@ const MyPopup = GObject.registerClass(
         // When the VPN panel is clicked updates the values
         async _menuopen(menu, open) {
             try {
-                if (open) { await this._update().catch((err) => { log(err) }); }
+                if (open) {
+                    await this._update().catch((err) => { log(err) });
+                }
             } catch (err) {
                 log(err);
             }
@@ -601,6 +631,8 @@ const MyPopup = GObject.registerClass(
             try {
                 var value = await this.getVPNstatusDict().catch((err) => { log(err) });
                 await this.updatevpnSettings().catch((err) => { log(err) });
+                // Destroy old timer and start new
+                this._updateTimeChanged();
                 if (value["Status"] === "connected") {
                     this.vpnToggle.setToggleState(true);
                     this._icon.icon_name = vpnON;
@@ -691,12 +723,12 @@ function init() {
 
 function enable() {
     myPopup = new MyPopup();
-    Main.panel.addToStatusArea('NordVPN', myPopup, 1);
+    // Main.panel.addToStatusArea('NordVPN', myPopup, 1);
+    Main.panel.addToStatusArea('NordVPN', myPopup);
 }
 
 function disable() {
-    GLib.Source.remove(timeout);
-    timeout = null;
+    myPopup.stop();
     myPopup.destroy();
     myPopup = null;
 }

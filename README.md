@@ -41,4 +41,4 @@ mkdir ~/usr/.local/share/gnome-shell/extensions/nordvpn@subipokharel.github.com/
 
 
 ## Disclaimer
-NordVPN-ubuntuextension is not an official extension, it's built by me to understand play around with gjs - feel free to use and modify the code as you want. No commercial use.
+nordvpn-subipokharel.github.com is not an official extension created by Nord Security. This extension is built by me to understand play around with GJS - feel free to use it or modify the code as you want. No commercial use allowed.
